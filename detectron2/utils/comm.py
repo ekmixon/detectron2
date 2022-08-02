@@ -23,17 +23,13 @@ This variable is set when processes are spawned by `launch()` in "engine/launch.
 def get_world_size() -> int:
     if not dist.is_available():
         return 1
-    if not dist.is_initialized():
-        return 1
-    return dist.get_world_size()
+    return dist.get_world_size() if dist.is_initialized() else 1
 
 
 def get_rank() -> int:
     if not dist.is_available():
         return 0
-    if not dist.is_initialized():
-        return 0
-    return dist.get_rank()
+    return dist.get_rank() if dist.is_initialized() else 0
 
 
 def get_local_rank() -> int:
@@ -59,9 +55,11 @@ def get_local_size() -> int:
     """
     if not dist.is_available():
         return 1
-    if not dist.is_initialized():
-        return 1
-    return dist.get_world_size(group=_LOCAL_PROCESS_GROUP)
+    return (
+        dist.get_world_size(group=_LOCAL_PROCESS_GROUP)
+        if dist.is_initialized()
+        else 1
+    )
 
 
 def is_main_process() -> bool:
@@ -114,8 +112,7 @@ def _serialize_to_tensor(data, group):
             )
         )
     storage = torch.ByteStorage.from_buffer(buffer)
-    tensor = torch.ByteTensor(storage).to(device=device)
-    return tensor
+    return torch.ByteTensor(storage).to(device=device)
 
 
 def _pad_to_largest_tensor(tensor, group):
@@ -268,5 +265,5 @@ def reduce_dict(input_dict, average=True):
             # only main process gets accumulated, so only divide by
             # world_size in this case
             values /= world_size
-        reduced_dict = {k: v for k, v in zip(names, values)}
+        reduced_dict = dict(zip(names, values))
     return reduced_dict

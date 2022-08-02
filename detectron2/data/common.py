@@ -100,9 +100,7 @@ class MapDataset(data.Dataset):
             if retry_count >= 3:
                 logger = logging.getLogger(__name__)
                 logger.warning(
-                    "Failed to apply `_map_func` for idx: {}, retry count: {}".format(
-                        idx, retry_count
-                    )
+                    f"Failed to apply `_map_func` for idx: {idx}, retry count: {retry_count}"
                 )
 
 
@@ -144,10 +142,7 @@ class DatasetFromList(data.Dataset):
             logger.info("Serialized dataset takes {:.2f} MiB".format(len(self._lst) / 1024 ** 2))
 
     def __len__(self):
-        if self._serialize:
-            return len(self._addr)
-        else:
-            return len(self._lst)
+        return len(self._addr) if self._serialize else len(self._lst)
 
     def __getitem__(self, idx):
         if self._serialize:
@@ -188,15 +183,12 @@ class ToIterableDataset(data.IterableDataset):
         self.shard_sampler = shard_sampler
 
     def __iter__(self):
-        if not self.shard_sampler:
-            sampler = self.sampler
-        else:
-            # With map-style dataset, `DataLoader(dataset, sampler)` runs the
-            # sampler in main process only. But `DataLoader(ToIterableDataset(dataset, sampler))`
-            # will run sampler in every of the N worker. So we should only keep 1/N of the ids on
-            # each worker. The assumption is that sampler is cheap to iterate so it's fine to
-            # discard ids in workers.
-            sampler = _shard_iterator_dataloader_worker(self.sampler)
+        sampler = (
+            _shard_iterator_dataloader_worker(self.sampler)
+            if self.shard_sampler
+            else self.sampler
+        )
+
         for idx in sampler:
             yield self.dataset[idx]
 

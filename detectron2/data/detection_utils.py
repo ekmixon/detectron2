@@ -158,9 +158,7 @@ def _apply_exif_orientation(image):
         8: Image.ROTATE_90,
     }.get(orientation)
 
-    if method is not None:
-        return image.transpose(method)
-    return image
+    return image.transpose(method) if method is not None else image
 
 
 def read_image(file_name, format=None):
@@ -192,7 +190,7 @@ def check_image_size(dataset_dict, image):
     if "width" in dataset_dict or "height" in dataset_dict:
         image_wh = (image.shape[1], image.shape[0])
         expected_wh = (dataset_dict["width"], dataset_dict["height"])
-        if not image_wh == expected_wh:
+        if image_wh != expected_wh:
             raise SizeMismatchError(
                 "Mismatched image shape{}, got {}, expect {}.".format(
                     " for image " + dataset_dict["file_name"]
@@ -304,10 +302,9 @@ def transform_instance_annotations(
             annotation["segmentation"] = mask
         else:
             raise ValueError(
-                "Cannot transform segmentation of type '{}'!"
-                "Supported types are: polygons as list[list[float] or ndarray],"
-                " COCO-style RLE as a dict.".format(type(segm))
+                f"Cannot transform segmentation of type '{type(segm)}'!Supported types are: polygons as list[list[float] or ndarray], COCO-style RLE as a dict."
             )
+
 
     if "keypoints" in annotation:
         keypoints = transform_keypoint_annotations(
@@ -356,9 +353,9 @@ def transform_keypoint_annotations(keypoints, transforms, image_size, keypoint_h
             raise ValueError("Cannot flip keypoints without providing flip indices!")
         if len(keypoints) != len(keypoint_hflip_indices):
             raise ValueError(
-                "Keypoint data has {} points, but metadata "
-                "contains {} points!".format(len(keypoints), len(keypoint_hflip_indices))
+                f"Keypoint data has {len(keypoints)} points, but metadata contains {len(keypoint_hflip_indices)} points!"
             )
+
         keypoints = keypoints[np.asarray(keypoint_hflip_indices, dtype=np.int32), :]
 
     # Maintain COCO convention that if visibility == 0 (unlabeled), then x, y = 0
@@ -416,18 +413,14 @@ def annotations_to_instances(annos, image_size, mask_format="polygon"):
                     # COCO RLE
                     masks.append(mask_util.decode(segm))
                 elif isinstance(segm, np.ndarray):
-                    assert segm.ndim == 2, "Expect segmentation of 2 dimensions, got {}.".format(
-                        segm.ndim
-                    )
+                    assert segm.ndim == 2, f"Expect segmentation of 2 dimensions, got {segm.ndim}."
                     # mask array
                     masks.append(segm)
                 else:
                     raise ValueError(
-                        "Cannot convert segmentation of type '{}' to BitMasks!"
-                        "Supported types are: polygons as list[list[float] or ndarray],"
-                        " COCO-style RLE as a dict, or a binary segmentation mask "
-                        " in a 2D numpy array of shape HxW.".format(type(segm))
+                        f"Cannot convert segmentation of type '{type(segm)}' to BitMasks!Supported types are: polygons as list[list[float] or ndarray], COCO-style RLE as a dict, or a binary segmentation mask  in a 2D numpy array of shape HxW."
                     )
+
             # torch.from_numpy does not support array with negative stride.
             masks = BitMasks(
                 torch.stack([torch.from_numpy(np.ascontiguousarray(x)) for x in masks])
@@ -501,9 +494,7 @@ def filter_empty_instances(
     m = r[0]
     for x in r[1:]:
         m = m & x
-    if return_mask:
-        return instances[m], m
-    return instances[m]
+    return (instances[m], m) if return_mask else instances[m]
 
 
 def create_keypoint_hflip_indices(dataset_names: Union[str, List[str]]) -> List[int]:
@@ -523,12 +514,9 @@ def create_keypoint_hflip_indices(dataset_names: Union[str, List[str]]) -> List[
 
     meta = MetadataCatalog.get(dataset_names[0])
     names = meta.keypoint_names
-    # TODO flip -> hflip
-    flip_map = dict(meta.keypoint_flip_map)
-    flip_map.update({v: k for k, v in flip_map.items()})
+    flip_map = dict(meta.keypoint_flip_map) | {v: k for k, v in flip_map.items()}
     flipped_names = [i if i not in flip_map else flip_map[i] for i in names]
-    flip_indices = [names.index(i) for i in flipped_names]
-    return flip_indices
+    return [names.index(i) for i in flipped_names]
 
 
 def gen_crop_transform_with_instance(crop_size, image_size, instance):
@@ -580,14 +568,14 @@ def check_metadata_consistency(key, dataset_names):
     for idx, entry in enumerate(entries_per_dataset):
         if entry != entries_per_dataset[0]:
             logger.error(
-                "Metadata '{}' for dataset '{}' is '{}'".format(key, dataset_names[idx], str(entry))
+                f"Metadata '{key}' for dataset '{dataset_names[idx]}' is '{str(entry)}'"
             )
+
             logger.error(
-                "Metadata '{}' for dataset '{}' is '{}'".format(
-                    key, dataset_names[0], str(entries_per_dataset[0])
-                )
+                f"Metadata '{key}' for dataset '{dataset_names[0]}' is '{str(entries_per_dataset[0])}'"
             )
-            raise ValueError("Datasets have different metadata '{}'!".format(key))
+
+            raise ValueError(f"Datasets have different metadata '{key}'!")
 
 
 def build_augmentation(cfg, is_train):

@@ -234,14 +234,12 @@ class BestCheckpointer(HookBase):
         self._logger = logging.getLogger(__name__)
         self._period = eval_period
         self._val_metric = val_metric
-        assert mode in [
+        assert mode in {
             "max",
             "min",
-        ], f'Mode "{mode}" to `BestCheckpointer` is unknown. It should be one of {"max", "min"}.'
-        if mode == "max":
-            self._compare = operator.gt
-        else:
-            self._compare = operator.lt
+        }, f'Mode "{mode}" to `BestCheckpointer` is unknown. It should be one of {"max", "min"}.'
+
+        self._compare = operator.gt if mode == "max" else operator.lt
         self._checkpointer = checkpointer
         self._file_prefix = file_prefix
         self.best_metric = None
@@ -413,9 +411,10 @@ class TorchProfiler(HookBase):
                     os.path.join(
                         self._output_dir,
                         "log",
-                        "profiler-tensorboard-iter{}".format(self.trainer.iter),
+                        f"profiler-tensorboard-iter{self.trainer.iter}",
                     )
                 )
+
             else:
                 on_trace_ready = None
             self._profiler = torch.profiler.profile(
@@ -436,8 +435,9 @@ class TorchProfiler(HookBase):
         self._profiler.__exit__(None, None, None)
         PathManager.mkdirs(self._output_dir)
         out_file = os.path.join(
-            self._output_dir, "profiler-trace-iter{}.json".format(self.trainer.iter)
+            self._output_dir, f"profiler-trace-iter{self.trainer.iter}.json"
         )
+
         if "://" not in out_file:
             self._profiler.export_chrome_trace(out_file)
         else:
@@ -520,12 +520,11 @@ class EvalHook(HookBase):
         self._func = eval_function
 
     def _do_eval(self):
-        results = self._func()
-
-        if results:
+        if results := self._func():
             assert isinstance(
                 results, dict
-            ), "Eval function must return a dict. Got {} instead.".format(results)
+            ), f"Eval function must return a dict. Got {results} instead."
+
 
             flattened_results = flatten_results_dict(results)
             for k, v in flattened_results.items():
@@ -533,9 +532,9 @@ class EvalHook(HookBase):
                     v = float(v)
                 except Exception as e:
                     raise ValueError(
-                        "[EvalHook] eval_function should return a nested dict of float. "
-                        "Got '{}: {}' instead.".format(k, v)
+                        f"[EvalHook] eval_function should return a nested dict of float. Got '{k}: {v}' instead."
                     ) from e
+
             self.trainer.storage.put_scalars(**flattened_results, smoothing_hint=False)
 
         # Evaluation may take different time among workers.
@@ -544,10 +543,12 @@ class EvalHook(HookBase):
 
     def after_step(self):
         next_iter = self.trainer.iter + 1
-        if self._period > 0 and next_iter % self._period == 0:
-            # do the last eval in after_train
-            if next_iter != self.trainer.max_iter:
-                self._do_eval()
+        if (
+            self._period > 0
+            and next_iter % self._period == 0
+            and next_iter != self.trainer.max_iter
+        ):
+            self._do_eval()
 
     def after_train(self):
         # This condition is to prevent the eval from running after a failed training
@@ -651,34 +652,34 @@ class TorchMemoryStats(HookBase):
         if self._runs > self._max_runs:
             return
 
-        if (self.trainer.iter + 1) % self._period == 0 or (
-            self.trainer.iter == self.trainer.max_iter - 1
-        ):
-            if torch.cuda.is_available():
-                max_reserved_mb = torch.cuda.max_memory_reserved() / 1024.0 / 1024.0
-                reserved_mb = torch.cuda.memory_reserved() / 1024.0 / 1024.0
-                max_allocated_mb = torch.cuda.max_memory_allocated() / 1024.0 / 1024.0
-                allocated_mb = torch.cuda.memory_allocated() / 1024.0 / 1024.0
+        if (
+            (self.trainer.iter + 1) % self._period == 0
+            or (self.trainer.iter == self.trainer.max_iter - 1)
+        ) and torch.cuda.is_available():
+            max_reserved_mb = torch.cuda.max_memory_reserved() / 1024.0 / 1024.0
+            reserved_mb = torch.cuda.memory_reserved() / 1024.0 / 1024.0
+            max_allocated_mb = torch.cuda.max_memory_allocated() / 1024.0 / 1024.0
+            allocated_mb = torch.cuda.memory_allocated() / 1024.0 / 1024.0
 
-                self._logger.info(
-                    (
-                        " iter: {} "
-                        " max_reserved_mem: {:.0f}MB "
-                        " reserved_mem: {:.0f}MB "
-                        " max_allocated_mem: {:.0f}MB "
-                        " allocated_mem: {:.0f}MB "
-                    ).format(
-                        self.trainer.iter,
-                        max_reserved_mb,
-                        reserved_mb,
-                        max_allocated_mb,
-                        allocated_mb,
-                    )
+            self._logger.info(
+                (
+                    " iter: {} "
+                    " max_reserved_mem: {:.0f}MB "
+                    " reserved_mem: {:.0f}MB "
+                    " max_allocated_mem: {:.0f}MB "
+                    " allocated_mem: {:.0f}MB "
+                ).format(
+                    self.trainer.iter,
+                    max_reserved_mb,
+                    reserved_mb,
+                    max_allocated_mb,
+                    allocated_mb,
                 )
+            )
 
-                self._runs += 1
-                if self._runs == self._max_runs:
-                    mem_summary = torch.cuda.memory_summary()
-                    self._logger.info("\n" + mem_summary)
+            self._runs += 1
+            if self._runs == self._max_runs:
+                mem_summary = torch.cuda.memory_summary()
+                self._logger.info("\n" + mem_summary)
 
-                torch.cuda.reset_peak_memory_stats()
+            torch.cuda.reset_peak_memory_stats()

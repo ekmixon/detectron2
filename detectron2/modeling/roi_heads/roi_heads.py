@@ -436,7 +436,7 @@ class Res5ROIHeads(ROIHeads):
         stride_in_1x1        = cfg.MODEL.RESNETS.STRIDE_IN_1X1
         norm                 = cfg.MODEL.RESNETS.NORM
         assert not cfg.MODEL.RESNETS.DEFORM_ON_PER_STAGE[-1], \
-            "Deformable conv is not yet supported in res5 head."
+                "Deformable conv is not yet supported in res5 head."
         # fmt: on
 
         blocks = ResNet.make_stage(
@@ -665,17 +665,18 @@ class StandardROIHeads(ROIHeads):
 
         in_channels = [input_shape[f].channels for f in in_features][0]
 
-        ret = {"mask_in_features": in_features}
-        ret["mask_pooler"] = (
-            ROIPooler(
+        ret = {
+            "mask_in_features": in_features,
+            "mask_pooler": ROIPooler(
                 output_size=pooler_resolution,
                 scales=pooler_scales,
                 sampling_ratio=sampling_ratio,
                 pooler_type=pooler_type,
             )
             if pooler_type
-            else None
-        )
+            else None,
+        }
+
         if pooler_type:
             shape = ShapeSpec(
                 channels=in_channels, width=pooler_resolution, height=pooler_resolution
@@ -699,17 +700,18 @@ class StandardROIHeads(ROIHeads):
 
         in_channels = [input_shape[f].channels for f in in_features][0]
 
-        ret = {"keypoint_in_features": in_features}
-        ret["keypoint_pooler"] = (
-            ROIPooler(
+        ret = {
+            "keypoint_in_features": in_features,
+            "keypoint_pooler": ROIPooler(
                 output_size=pooler_resolution,
                 scales=pooler_scales,
                 sampling_ratio=sampling_ratio,
                 pooler_type=pooler_type,
             )
             if pooler_type
-            else None
-        )
+            else None,
+        }
+
         if pooler_type:
             shape = ShapeSpec(
                 channels=in_channels, width=pooler_resolution, height=pooler_resolution

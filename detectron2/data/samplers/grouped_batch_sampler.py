@@ -22,9 +22,9 @@ class GroupedBatchSampler(BatchSampler):
         """
         if not isinstance(sampler, Sampler):
             raise ValueError(
-                "sampler should be an instance of "
-                "torch.utils.data.Sampler, but got sampler={}".format(sampler)
+                f"sampler should be an instance of torch.utils.data.Sampler, but got sampler={sampler}"
             )
+
         self.sampler = sampler
         self.group_ids = np.asarray(group_ids)
         assert self.group_ids.ndim == 1
